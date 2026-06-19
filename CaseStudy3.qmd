@@ -1,0 +1,270 @@
+---
+title: "Case Study three: Vexing Voter Varieties"
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+    code-summary: "Show code"
+author: Hadiya Cabdi
+editor: source
+bibliography: refrence.bib
+---
+
+## Intro:
+
+Voter turnout has been inconsistent in the 2024 presidential election where a third of eligible Americans chose not to vote for reasons unknown or undisclosed. It sparked a lot of questions for political organisations and statisticians like myself. That is why in this case study as a statistical consultant working for a local political organisation i will be answering who constitutes an infrequent voter by looking at data set consisted of responses from 5000 U.S. citizens collected by FiveThirtyEight in collaboration with Ipsos. Respondents were asked a variety of questions about their political beliefs, thoughts on current issues and voting behavior. Some of the variables we are going to explore in this case study are:
+
+-   page: The age of respondent in years.
+
+-   educ: highest educational attainment, which is represented categorically.
+
+-   race: self-reported race and ethnicity of the respondent, using census categories except "Hispanic" are non Hispanic
+
+-   gender: self-reported gender of the respondent
+
+-   income_cat: household income, represented categorically
+
+-   Q30: self-reported political affiliation directly answer the question of " Generally speaking do you think of yourself as a ..." Its divided as the following: Republican(1), Democrat(2), Independent(3), Another Party(4), and No preference(5).
+
+-   voter_category: past voting behavior, categorized as:
+
+1)  “always”, meaning the respondent voted in all or all-but-one of the elections they were eligible in)
+
+2)  “sporadic”, meaning the respondent voted in at least two, but fewer than all-but-one, of the elections they were eligible in
+
+3)  “rarely/never”, meaning the respondent voted in 0 or 1 of the elections they were eligible in.
+
+The main questions that will be answered or explored in this case study is as follows:
+
+## Primary Goal:
+
+-   Does political party affiliation plays a role in an individual’s likelihood of voting. If so, what is the nature of this relationship?
+
+-   500 new people recently signed up for our mailing list, and we would like to send infrequent voters a personalized message encouraging them to vote. Based on the patterns you find at the national level, can you identify which of these people are likely to be infrequent voters? If so, how reliable is this categorization?
+
+## Process:
+
+First step is to load all of our packages and data:
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+
+library(tidyverse)
+
+ipsos_poll <- read.csv(
+  "http://drive.google.com/uc?export=download&id=1nIQA5HMbvrdYDlpEJcTPzArBkSUp87gc",
+  na.strings = c(-1, "NA")
+  ) |>
+  select(ppage, educ, race, gender, income_cat, Q30, voter_category) |>
+  mutate(infrequent_voter = ifelse(voter_category == "rarely/never", 1, 0))
+
+new_members <- read.csv(
+  "https://drive.google.com/uc?export=download&id=1lxNnBoi73P2LAS3cM5GMs8LuNwPiXMFN",
+  na.strings = c(-1, "NA")
+  ) |>
+  select(ppage, educ, race, gender, income_cat, Q30, voter_category)
+```
+
+### Wrangling data:
+
+Now that we have all of our data loaded we will look for NA/Missing variables and instead of removing them i will be using an indicator method, to create an additional category labeled “Missing” for each categorical variable. This replaces any NA values and allows us to retain all of individuals instead of dropping observations with missing data. This approach treats missingness as potentially informative.
+
+```{r}
+ipsos_poll <- ipsos_poll |>
+  mutate(across(c(educ, race, gender, income_cat, Q30),
+                ~forcats::fct_na_value_to_level(as.factor(.), level = "Missing")))
+```
+
+## Q1: Does political party affiliation plays a role in an individual’s likelihood of voting. If so, what is the nature of this relationship?
+
+A visualization of all of the political parties in q30 is measured using the indicator function, which represents 0 as those who are frequent voters and 1 indicating those who are infrequent voters in each political affiliation. We have numbers 1 through 5 in the graph, which represent the following political parties + missing group:
+
+-   1: Republican
+-   2: Democrat
+-   3: Independent
+-   4: Another Party
+-   5: No preference
+-   Missing group
+
+```{r}
+ipsos_poll |>
+  ggplot(aes(x = Q30, fill = factor(infrequent_voter))) +
+  geom_bar(position = "fill") +
+  labs(y = "Proportion",
+       fill = "Infrequent Voters",
+       title = "Each Political Affilation Infrequent Voting")
+```
+
+Individuals with no party preference and independents appear more likely to be infrequent voters, while Democrats and Republicans show lower proportions of infrequent voting. There is also a high number of infrequent voters due to missingness. To further show this isn't a noise or random we can compute the model and compute significance distribution test.
+
+### Signifacance test/Hypothesis:
+
+Our null hypothesis is $$H_0: B_j = 0$$:
+
+-   The variable has no effect on voting, which corresponds to odds ratio of 1.
+
+Alternative hypothesis $$H_A doesnt = 0$$:
+
+-   Which means the variable does affect voting behavior.
+
+### Model 1:
+
+Using the logistic regression model we estimate a probability of each individual being an infrequent voter. $$P(Y = 1) = P(infrequent voter)$$ It produces a probability between 0 and 1 for each person. For example a predicted value like 0.88 indicates a very high likelihood being an infrequent voter. The model assumes: $$log(p/1-p) = B_0 +B_1Q30 + B_2ppage+ B_3educ + B_4income_cat + B_5race + B6_gender $$
+
+```{r}
+model_1 <- glm(infrequent_voter ~ Q30 + ppage + educ + income_cat + race + gender,
+             data = ipsos_poll,
+             family = "binomial")
+
+summary(model_1)
+```
+
+### Interpretation:
+
+Looking at the z-value and the corresponding p-value to assess for statistical significance we can see that the political affiliations such as Q303(independent), Q305(No preference), and Q30(Missing) are significant while Q302(Republican), and Q304(other party) are not significant. The z-value is calculated by dividing the coefficient estimate by its standard error, and it measures under the null hypothesis, how many standard deviation the estimate is away from zero. $$H_0: B_j = 0$$ The larger the z-value the stronger the evidence is against the null hypothesis.
+
+One the other hand the p-value is representing the probability of observing a z-value as extreme. Therefore from our regression output, Q303(independent)(p=0.0071), Q305(No preference)(p \< 0.001) and Q30 missing(p = 0.00135) are all statistically significant due to their p-value \> 0.05. The No preference group has the largest z-value of 9.438 indicating strong evidence that this affiliation in fact is has something to do withe infrequent voting. On the other hand Republicans and Q304(Other party) with a p value of 0.299 and 0.456 fail to reject the null hypothesis due to their statistical insignificance.
+
+This suggests that their infrequent voter likelihood doesn't differ from Democrats. The standard error quantifies the uncertainty in each coefficient estimate. age and education standard error indicates more precise due to it smallness while the large standard error of missing and other party indicate greater variability.
+
+If we convert our significant variables to odds ratio we will have have the following.
+
+```{r}
+exp(coef(model_1))
+```
+
+## Odds Ratio/Interpretation:
+
+-   The odds ratio for the independent party is $$e^{0.2575} = 1.32$$ This means the independent party has about $$(1.32 - 1) * 100 $$ 32% higher odds of being infrequent voters compared to democrats.
+
+-   The odds ratio for the no preference group(Q305) is $$e^{1.1075
+    } = 3.03$$ This means the no preference group have 3 times higher odds of being infrequent voters.
+
+-   The odds ratio for the Age variable(page) is $$e^{-0.0523} = 0.95$$ which means each additional year of age decreases the odds of being an infrequent voter by about $$(1 - 0.95) * 100 = 5$$ Each additional year of age decreases the odds of being an infrequent voter by about 5%.
+
+-   The odds ratio for education(high school or less) is 2.69, which means individuals with high school education or less have about 2.7 times higher odds of being infrequent voters.
+
+### Confidence Interval:
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+
+exp(confint(model_1))
+```
+
+The confidence interval shows:
+
+-   For Q305(No preference) is (2.31,3.81): higher odds of being an infrequent voter which are also significant.
+-   For Q303(Independent) is (1.08,1.61) which is significant.
+-   For low education(2.22,3.25) which is also significant.
+-   For Q302(Republican) is (0.74,1.10) which doesn't indicate statistically significant difference from reference group.
+
+This reinforces the previous explanation that weaker political affiliation as well as socioeconomic status typically associate with high likelihood of infrequent voting.
+
+## Results for Q1:
+
+Overall we can see that the "No preference group" is the most significant and with the highest odds ratio of being or containing the most infrequent voters. Furthermore this is supported by the infrequent voting by political affiliation graph which portrays that individuals with no party preference (group 5) has the highest infrequent voters, while the independent voters(group 3) with the second highest infrequent voters is slightly higher then the democrats and republicans. It suggests that stronger party affiliation is associated with higher voting participation compared to those affiliated with weaker parties.
+
+For each political party/affiliation i conducted hypothesis tests under null distribution. $$H_0: B = 0$$, that party affiliation has no effect on the likelihood of being an infrequent voter. The regression table confirms that these are not due to random noise, and that individual who identify as independent have significantly higher odds of being infrequent voters compared to other stronger parties such democrats.
+
+In contrast the difference between democrats and republicans are not statistically significant with a p_value of 0.299. That is why political party affiliations play a role in an individual's likelihood of voting, and the nature of the relationship is that political engagement typically increases with stronger party identification.
+
+### Q2:500 new people recently signed up for our mailing list, and we would like to send infrequent voters a personalized message encouraging them to vote. Based on the patterns you find at the national level, can you identify which of these people are likely to be infrequent voters? If so, how reliable is this categorization?
+
+```{r}
+library(forcats)
+
+new_members <- new_members |>
+  mutate(across(c(educ, race, gender, income_cat, Q30),
+                ~fct_na_value_to_level(as.factor(.), level = "Missing")))
+```
+
+```{r}
+# Probability predictions
+
+new_members$pred_prob <- predict(model_1, newdata = new_members, type = "response")
+
+```
+
+In order to turn probabilities to decisions that we can interpret we will have to create a threshold of 0.5, to classify whether individuals will be labeled as an infrequent voter if probability is greater than 0.5 or not.
+
+```{r}
+# Classification (threshold = 0.5)
+new_members$pred_class <- ifelse(new_members$pred_prob > 0.5, 1, 0)
+```
+
+After that we will have to see how many of the classification are predicted to be infrequent voters:
+
+```{r}
+
+table(new_members$pred_class)
+```
+
+We observe that 62 people out of the 500 new members are classified as infrequent voters while the rest 438 are classified to be regular voters. Although it might represent relatively a small number which is about(12.4%) it identifies a meaningful subset of individuals who could benefit from targeted outreach.
+
+To better understand these individuals we examine those who are with the highest predicted probabilities.
+
+```{r}
+# Top likely infrequent voters
+head(new_members[order(-new_members$pred_prob),]) 
+```
+
+## Interpretation:
+
+We can see that the individuals with the highest predicted probability(around 0.80 - 0.89) exhibit constant characteristics. Most belong to Q30 category 5(no party preference) which have lower levels of education(high school or less), and lower income levels(less than \$40k). The model associated infrequent voting to lower socioeconomic status and weak political affiliation. However we have to note that those socioeconomic variables are also boosting the odds and together create a very high probability. For example, individuals with no party preference already have substantially higher odds of being infrequent voters as previously established, and when combined with lower education, lower income, and younger age, the predicted probability increases further.
+
+Nevertheless the model isnt perfect. For instance the model is picking up someone who looks like an infrequent voter based on their socioeconomic background. An individual labeled as sporadic voter is assigned a high predicted probability of \~0.86.
+
+A sporadic voter belongs to the "Voter Category" variable which defines it as:
+
+-   sporadic”: the respondent voted in at least two, but fewer than all-but-one, of the elections they were eligible in.
+
+However for this part of the analysis we are interested in the Voter category,
+
+-   “rarely/never”, meaning the respondent voted in 0 or 1 of the elections they were eligible in.
+
+    This shows that our model depends on statistical patterns rather than exact classification. Therefore some misclassifications are to be expected. However it doesn't change anything from the rest of our predictions.
+
+    We can further explore how reliable the model is by assessing its performance using predicted probabilities on the original data set.
+
+### Reliability:
+
+```{r}
+ipsos_poll$pred_prob <- predict(model_1, type = "response")
+ipsos_poll$pred_class <- ifelse(ipsos_poll$pred_prob > 0.5, 1, 0)
+
+matrix <- table(Predicted = ipsos_poll$pred_class,
+                     Actual = ipsos_poll$infrequent_voter)
+
+matrix
+```
+
+The confusion matrix shows that our model is pretty reliable as it identifies a high/large number of true negatives(frequent voters): 37886, however, misses many infrequent voters(false negatives): 899. its much better identifying frequent voters.
+
+# Roc Curve:
+
+We can use the Receiver Operating Characteristic(ROC) curve rather then relying only on a single classification threshold to evaluate model performance across all possible thresholds.
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+
+library(pROC)
+
+roc <- roc(ipsos_poll$infrequent_voter, ipsos_poll$pred_prob)
+plot(roc, main = "ROC Curve for Infrequent Voter Model")
+```
+
+The ROC curve plots the sensitivity against false positive rate(1 - specificity) at different thresholds. By looking at the gray line above the diagonal line the ROC curve shows that the model performs way better than random classification. The shape of the curve suggests meaningful predictive ability, due to the ability of the model to achieve relatively high sensitivity at levels of false positives. However the curve also shows the trade off between sensitivity and specificity. Many infrequent voters may not be identified at the default classification threshold. Overall the ROC curve indicates the model's effectiveness depends on the choice of classification threshold and identifying infrequent voters vs minimizing false positive.
+
+Area under curve(AUC): will further help us summaries the model's overall ability to distinguish between infrequent and frequent voters:
+
+```{r}
+auc(roc)
+```
+
+Our area under curve is 0.7795 which indicates moderate performance. It means that the model is reasonable effective separating the infrequent and frequent voters, however is not perfect.
+
+## Results for Q2:
+
+Overall, based on patterns observed in the national data set and the logistic regression model we end up with 62 individuals as likely infrequent voters out of 500 new members. They all share same characteristic of lower voting participation including weak or no party affiliations, lower income, similar level of education, and younger age. In terms of reliability the model represents moderate predictive performance. Furthermore the ROC curve supports it farther due to it being above the diagonal line, which indicates that the model performs better than random classification. The model provides a reliable information to identify a high confidence subset of infrequent voters which is good for targeted outreach, however, it should be interpreted carefully as it doesn't capture fully all individuals who are unlikely to vote.
+
+# Conclusion:
+
+Using Logistic regression, Hypothesis testing, predictions, and Roc analysis we find that political affiliation in fact plays a significant role in voting behavior. Individuals with weaker political affiliation and lower socioeconomic backgrounds especially the no preference group and independent have higher odds of being infrequent voters according to our model analysis. 62 individuals out of the 500 new members were identified to be infrequent voters which could be good for the targeted outreach. The area under the curve shows moderate predictive performance which performs better than random classification. It is more better predicting frequent voters than infrequent voters, but provides a useful information and approach for targeting infrequent voters. Results should be interpreted with caution as its not a perfect model.
