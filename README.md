@@ -1,5 +1,4 @@
-# Vexing-Voter-Varieties
-P# Voter Turnout Prediction using Logistic Regression
+# Voter Turnout Prediction using Logistic Regression
 
 This project investigates factors associated with voter participation using logistic regression and survey data from **FiveThirtyEight** and **Ipsos**. The goal is to identify demographic and political characteristics associated with infrequent voting while evaluating the predictive performance of a classification model.
 
